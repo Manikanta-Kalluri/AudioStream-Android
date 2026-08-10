@@ -1,212 +1,130 @@
+```java
 package com.manikanta.audiostream.receiver;
 
 import android.media.AudioAttributes;
 import android.media.AudioFormat;
 import android.media.AudioTrack;
+import android.os.Environment;
 
+import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileOutputStream;
-import java.io.IOException;
-
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.Response;
-import okhttp3.WebSocket;
-import okhttp3.WebSocketListener;
-import okio.ByteString;
+import java.net.Socket;
 
 public class AudioReceiver {
 
-    public interface StatusListener {
-        void onStatus(String message);
-    }
+    private static final int PORT = 8988;
 
     private static final int SAMPLE_RATE = 16000;
 
-    private final String serverUrl;
+    private static final int CHANNEL =
+            AudioFormat.CHANNEL_OUT_MONO;
 
-    private final String roomId;
+    private static final int AUDIO_FORMAT =
+            AudioFormat.ENCODING_PCM_16BIT;
 
-    private final StatusListener listener;
-
-    private WebSocket socket;
+    private Socket socket;
 
     private AudioTrack audioTrack;
 
-    private boolean listening = false;
+    private volatile boolean connected = false;
 
-    private boolean recording = false;
+    private volatile boolean listening = true;
 
-    private FileOutputStream output;
+    private volatile boolean recording = false;
 
-    private File recordingFile;
+    private FileOutputStream recordingOutput;
 
-    private long audioBytes = 0;
+    private Thread receiverThread;
 
-    public AudioReceiver(
-            String serverUrl,
-            String roomId,
-            StatusListener listener) {
+    public interface ConnectionListener {
 
-        this.serverUrl = serverUrl;
+        void onConnected();
 
-        this.roomId = roomId;
-
-        this.listener = listener;
+        void onDisconnected();
     }
 
-    public void connect() {
+    public void connect(
+            String ip,
+            ConnectionListener listener
+    ) {
 
-        Request request =
-                new Request.Builder()
-                        .url(serverUrl)
-                        .build();
-
-        OkHttpClient client =
-                new OkHttpClient();
-
-        socket =
-                client.newWebSocket(
-                        request,
-                        new WebSocketListener() {
-
-                            @Override
-                            public void onOpen(
-                                    WebSocket webSocket,
-                                    Response response) {
-
-                                try {
-
-                                    String json =
-                                            "{\"type\":\"join\",\"roomId\":\""
-                                                    + roomId
-                                                    + "\"}";
-
-                                    webSocket.send(
-                                            json
-                                    );
-
-                                    listener.onStatus(
-                                            "Connected"
-                                    );
-
-                                } catch (Exception e) {
-
-                                    listener.onStatus(
-                                            "Join failed"
-                                    );
-                                }
-                            }
-
-                            @Override
-                            public void onMessage(
-                                    WebSocket webSocket,
-                                    ByteString bytes) {
-
-                                byte[] audio =
-                                        bytes.toByteArray();
-
-                                if (listening) {
-
-                                    playAudio(
-                                            audio
-                                    );
-                                }
-
-                                if (recording) {
-
-                                    saveAudio(
-                                            audio
-                                    );
-                                }
-                            }
-
-                            @Override
-                            public void onFailure(
-                                    WebSocket webSocket,
-                                    Throwable t,
-                                    Response response) {
-
-                                listener.onStatus(
-                                        "Connection failed"
-                                );
-                            }
-                        }
-                );
-    }
-
-    public boolean toggleListen() {
-
-        listening =
-                !listening;
-
-        if (listening) {
-
-            createAudioTrack();
-
-            listener.onStatus(
-                    "LISTEN ON"
-            );
-
-        } else {
-
-            stopAudioTrack();
-
-            listener.onStatus(
-                    "LISTEN OFF"
-            );
-        }
-
-        return listening;
-    }
-
-    public boolean toggleRecord() {
-
-        recording =
-                !recording;
-
-        if (recording) {
+        receiverThread = new Thread(() -> {
 
             try {
 
-                startRecording();
+                socket =
+                        new Socket(
+                                ip,
+                                PORT
+                        );
 
-                listener.onStatus(
-                        "RECORD ON"
-                );
+                connected = true;
 
-            } catch (IOException e) {
+                setupAudioTrack();
 
-                recording = false;
+                listener.onConnected();
 
-                listener.onStatus(
-                        "Recording failed"
-                );
+                BufferedInputStream input =
+                        new BufferedInputStream(
+                                socket.getInputStream()
+                        );
+
+                byte[] buffer =
+                        new byte[4096];
+
+                int bytesRead;
+
+                while (
+                        connected &&
+                        (bytesRead =
+                                input.read(buffer)) != -1
+                ) {
+
+                    if (recording) {
+
+                        writeRecording(
+                                buffer,
+                                bytesRead
+                        );
+                    }
+
+                    if (listening) {
+
+                        audioTrack.write(
+                                buffer,
+                                0,
+                                bytesRead
+                        );
+                    }
+                }
+
+            } catch (Exception e) {
+
+                e.printStackTrace();
+
+            } finally {
+
+                connected = false;
+
+                stopAudio();
+
+                stopRecording();
+
+                listener.onDisconnected();
             }
+        });
 
-        } else {
-
-            stopRecording();
-
-            listener.onStatus(
-                    "RECORD OFF"
-            );
-        }
-
-        return recording;
+        receiverThread.start();
     }
 
-    private void createAudioTrack() {
+    private void setupAudioTrack() {
 
-        if (audioTrack != null) {
-            return;
-        }
-
-        int buffer =
+        int bufferSize =
                 AudioTrack.getMinBufferSize(
                         SAMPLE_RATE,
-                        AudioFormat.CHANNEL_OUT_MONO,
-                        AudioFormat.ENCODING_PCM_16BIT
+                        CHANNEL,
+                        AUDIO_FORMAT
                 );
 
         audioTrack =
@@ -214,31 +132,30 @@ public class AudioReceiver {
                         .setAudioAttributes(
                                 new AudioAttributes.Builder()
                                         .setUsage(
-                                                AudioAttributes.USAGE_MEDIA
+                                                AudioAttributes
+                                                        .USAGE_MEDIA
                                         )
                                         .setContentType(
-                                                AudioAttributes.CONTENT_TYPE_SPEECH
+                                                AudioAttributes
+                                                        .CONTENT_TYPE_SPEECH
                                         )
                                         .build()
                         )
                         .setAudioFormat(
                                 new AudioFormat.Builder()
+                                        .setEncoding(
+                                                AUDIO_FORMAT
+                                        )
                                         .setSampleRate(
                                                 SAMPLE_RATE
                                         )
-                                        .setEncoding(
-                                                AudioFormat.ENCODING_PCM_16BIT
-                                        )
                                         .setChannelMask(
-                                                AudioFormat.CHANNEL_OUT_MONO
+                                                CHANNEL
                                         )
                                         .build()
                         )
                         .setBufferSizeInBytes(
-                                Math.max(
-                                        buffer,
-                                        4096
-                                )
+                                bufferSize * 2
                         )
                         .setTransferMode(
                                 AudioTrack.MODE_STREAM
@@ -248,135 +165,151 @@ public class AudioReceiver {
         audioTrack.play();
     }
 
-    private void playAudio(
-            byte[] audio) {
+    public boolean toggleListening() {
 
-        if (audioTrack != null) {
+        listening = !listening;
 
-            audioTrack.write(
-                    audio,
-                    0,
-                    audio.length
-            );
-        }
+        return listening;
     }
 
-    private void stopAudioTrack() {
+    public boolean toggleRecording() {
 
-        if (audioTrack != null) {
+        recording = !recording;
 
-            try {
+        if (recording) {
+            startRecording();
+        } else {
+            stopRecording();
+        }
 
-                audioTrack.stop();
+        return recording;
+    }
 
-            } catch (Exception ignored) {
+    private void startRecording() {
+
+        try {
+
+            File directory =
+                    new File(
+                            getRecordingDirectory()
+                    );
+
+            if (!directory.exists()) {
+                directory.mkdirs();
             }
 
-            audioTrack.release();
+            String fileName =
+                    "audio_" +
+                    System.currentTimeMillis() +
+                    ".pcm";
 
-            audioTrack = null;
+            File file =
+                    new File(
+                            directory,
+                            fileName
+                    );
+
+            recordingOutput =
+                    new FileOutputStream(file);
+
+        } catch (Exception e) {
+
+            e.printStackTrace();
+
+            recording = false;
         }
     }
 
-    private void startRecording()
-            throws IOException {
+    private String getRecordingDirectory() {
+
+        File base =
+                Environment
+                        .getExternalStoragePublicDirectory(
+                                Environment
+                                        .DIRECTORY_MUSIC
+                        );
 
         File directory =
                 new File(
-                        getFilesDir(),
-                        "recordings"
+                        base,
+                        "AudioStream"
                 );
 
-        if (!directory.exists()) {
-
-            if (!directory.mkdirs()) {
-
-                throw new IOException(
-                        "Cannot create directory"
-                );
-            }
-        }
-
-        recordingFile =
-                new File(
-                        directory,
-                        "audio_"
-                                + System.currentTimeMillis()
-                                + ".pcm"
-                );
-
-        output =
-                new FileOutputStream(
-                        recordingFile
-                );
-
-        audioBytes = 0;
+        return directory.getAbsolutePath();
     }
 
-    private void saveAudio(
-            byte[] audio) {
+    private void writeRecording(
+            byte[] data,
+            int length
+    ) {
 
-        if (output == null) {
+        if (recordingOutput == null) {
             return;
         }
 
         try {
 
-            output.write(audio);
+            recordingOutput.write(
+                    data,
+                    0,
+                    length
+            );
 
-            audioBytes += audio.length;
+        } catch (Exception e) {
 
-        } catch (IOException e) {
-
-            recording = false;
-
-            stopRecording();
+            e.printStackTrace();
         }
     }
 
     private void stopRecording() {
 
-        if (output != null) {
+        if (recordingOutput != null) {
 
             try {
-
-                output.flush();
-
-                output.close();
-
-            } catch (IOException ignored) {
+                recordingOutput.flush();
+                recordingOutput.close();
+            } catch (Exception ignored) {
             }
 
-            output = null;
-        }
-
-        if (recordingFile != null) {
-
-            listener.onStatus(
-                    "Saved: "
-                            + recordingFile.getAbsolutePath()
-            );
+            recordingOutput = null;
         }
     }
 
-    public void stop() {
+    private void stopAudio() {
 
-        listening = false;
+        if (audioTrack != null) {
 
-        recording = false;
+            try {
+                audioTrack.stop();
+            } catch (Exception ignored) {
+            }
 
-        stopAudioTrack();
+            try {
+                audioTrack.release();
+            } catch (Exception ignored) {
+            }
+
+            audioTrack = null;
+        }
+    }
+
+    public void disconnect() {
+
+        connected = false;
 
         stopRecording();
 
         if (socket != null) {
 
-            socket.close(
-                    1000,
-                    "Stopped"
-            );
+            try {
+                socket.close();
+            } catch (Exception ignored) {
+            }
 
             socket = null;
         }
+
+        stopAudio();
     }
 }
+```
