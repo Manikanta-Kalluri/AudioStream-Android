@@ -1,4 +1,3 @@
-```yaml
 name: Android Build
 
 on:
@@ -13,7 +12,7 @@ on:
 jobs:
 
   sender:
-    name: Build Sender APK
+    name: Build Sender
     runs-on: ubuntu-latest
 
     steps:
@@ -21,19 +20,18 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Java 17
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Make Gradle executable
-        working-directory: sender
-        run: chmod +x gradlew
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
 
       - name: Build Sender
         working-directory: sender
-        run: ./gradlew assembleDebug
+        run: gradle assembleDebug
 
       - name: Upload Sender APK
         uses: actions/upload-artifact@v4
@@ -43,7 +41,7 @@ jobs:
 
 
   receiver:
-    name: Build Receiver APK
+    name: Build Receiver
     runs-on: ubuntu-latest
 
     steps:
@@ -51,19 +49,18 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Java 17
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Make Gradle executable
-        working-directory: receiver
-        run: chmod +x gradlew
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
 
       - name: Build Receiver
         working-directory: receiver
-        run: ./gradlew assembleDebug
+        run: gradle assembleDebug
 
       - name: Upload Receiver APK
         uses: actions/upload-artifact@v4
