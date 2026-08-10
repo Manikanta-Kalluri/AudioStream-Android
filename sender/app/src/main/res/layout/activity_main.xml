@@ -1,75 +1,29 @@
+```xml
 <?xml version="1.0" encoding="utf-8"?>
 
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
-
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-
     android:orientation="vertical"
+    android:gravity="center"
     android:padding="24dp">
 
     <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-
-        android:text="Mobile 1 - Sender"
-        android:textSize="24sp"
-        android:textStyle="bold"/>
-
-    <EditText
-        android:id="@+id/serverUrl"
-
+        android:id="@+id/statusText"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-
-        android:layout_marginTop="24dp"
-
-        android:hint="WebSocket URL"
-
-        android:text="ws://192.168.1.100:8080"/>
-
-    <EditText
-        android:id="@+id/roomId"
-
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-
-        android:layout_marginTop="12dp"
-
-        android:hint="Room ID"
-
-        android:text="room1"/>
-
-    <TextView
-        android:id="@+id/status"
-
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-
-        android:layout_marginTop="24dp"
-
-        android:text="Stopped"
-        android:textSize="18sp"/>
+        android:text="Mobile 1"
+        android:textSize="18sp"
+        android:gravity="center"
+        android:padding="20dp"/>
 
     <Button
-        android:id="@+id/start"
-
+        android:id="@+id/startButton"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-
-        android:layout_marginTop="24dp"
-
-        android:text="START MICROPHONE"/>
-
-    <Button
-        android:id="@+id/stop"
-
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-
-        android:layout_marginTop="12dp"
-
-        android:text="STOP MICROPHONE"/>
+        android:text="START MICROPHONE"
+        android:layout_marginTop="20dp"/>
 
 </LinearLayout>
+```
