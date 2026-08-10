@@ -1,4 +1,3 @@
-```java
 package com.manikanta.audiostream.sender;
 
 import android.Manifest;
@@ -92,4 +91,3 @@ public class MainActivity extends AppCompatActivity {
         startButton.setEnabled(false);
     }
 }
-```
