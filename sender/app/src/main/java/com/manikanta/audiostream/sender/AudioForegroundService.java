@@ -1,102 +1,92 @@
+```java
 package com.manikanta.audiostream.sender;
 
+import android.Manifest;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.Service;
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.os.Build;
 import android.os.IBinder;
 
-public class AudioForegroundService
-        extends Service {
+import androidx.core.app.ActivityCompat;
+import androidx.core.app.NotificationCompat;
 
-    private static final String CHANNEL =
-            "audio_channel";
+public class AudioForegroundService extends Service {
 
-    private AudioStreamer streamer;
+    private static final String CHANNEL_ID = "audio_stream_channel";
+    private static final int NOTIFICATION_ID = 1001;
+
+    private AudioStreamer audioStreamer;
 
     @Override
     public void onCreate() {
-
         super.onCreate();
 
-        NotificationChannel channel =
-                new NotificationChannel(
-                        CHANNEL,
-                        "Audio Streaming",
-                        NotificationManager.IMPORTANCE_LOW
-                );
-
-        NotificationManager manager =
-                getSystemService(
-                        NotificationManager.class
-                );
-
-        manager.createNotificationChannel(
-                channel
-        );
+        createNotificationChannel();
 
         Notification notification =
-                new Notification.Builder(
-                        this,
-                        CHANNEL
-                )
-                .setContentTitle(
-                        "AudioStream"
-                )
-                .setContentText(
-                        "Microphone is active"
-                )
-                .setSmallIcon(
-                        android.R.drawable.ic_btn_speak_now
-                )
-                .setOngoing(true)
-                .build();
+                new NotificationCompat.Builder(this, CHANNEL_ID)
+                        .setContentTitle("Audio Streaming Active")
+                        .setContentText("Microphone is streaming")
+                        .setSmallIcon(android.R.drawable.ic_btn_speak_now)
+                        .setOngoing(true)
+                        .setCategory(NotificationCompat.CATEGORY_SERVICE)
+                        .build();
 
-        startForeground(
-                1001,
-                notification
-        );
-    }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
 
-    @Override
-    public int onStartCommand(
-            Intent intent,
-            int flags,
-            int startId) {
+            if (ActivityCompat.checkSelfPermission(
+                    this,
+                    Manifest.permission.RECORD_AUDIO
+            ) != PackageManager.PERMISSION_GRANTED) {
 
-        String url =
-                intent.getStringExtra(
-                        "SERVER_URL"
-                );
-
-        String room =
-                intent.getStringExtra(
-                        "ROOM_ID"
-                );
-
-        if (streamer == null) {
-
-            streamer =
-                    new AudioStreamer(
-                            url,
-                            room
-                    );
-
-            streamer.start();
+                stopSelf();
+                return;
+            }
         }
 
-        return START_NOT_STICKY;
+        startForeground(
+                NOTIFICATION_ID,
+                notification
+        );
+
+        audioStreamer = new AudioStreamer();
+
+        audioStreamer.start();
+    }
+
+    private void createNotificationChannel() {
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+
+            NotificationChannel channel =
+                    new NotificationChannel(
+                            CHANNEL_ID,
+                            "Audio Streaming",
+                            NotificationManager.IMPORTANCE_LOW
+                    );
+
+            channel.setDescription(
+                    "Keeps microphone audio streaming"
+            );
+
+            NotificationManager manager =
+                    getSystemService(NotificationManager.class);
+
+            if (manager != null) {
+                manager.createNotificationChannel(channel);
+            }
+        }
     }
 
     @Override
     public void onDestroy() {
 
-        if (streamer != null) {
-
-            streamer.stop();
-
-            streamer = null;
+        if (audioStreamer != null) {
+            audioStreamer.stop();
         }
 
         super.onDestroy();
@@ -104,7 +94,7 @@ public class AudioForegroundService
 
     @Override
     public IBinder onBind(Intent intent) {
-
         return null;
     }
 }
+```
