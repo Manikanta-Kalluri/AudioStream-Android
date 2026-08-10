@@ -1,4 +1,3 @@
-```java
 package com.manikanta.audiostream.sender;
 
 import android.Manifest;
@@ -97,4 +96,3 @@ public class AudioForegroundService extends Service {
         return null;
     }
 }
-```
