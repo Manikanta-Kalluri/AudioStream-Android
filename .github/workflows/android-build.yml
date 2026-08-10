@@ -1,0 +1,73 @@
+```yaml
+name: Android Build
+
+on:
+  push:
+    branches:
+      - main
+
+  pull_request:
+    branches:
+      - main
+
+jobs:
+
+  sender:
+    name: Build Sender APK
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Make Gradle executable
+        working-directory: sender
+        run: chmod +x gradlew
+
+      - name: Build Sender
+        working-directory: sender
+        run: ./gradlew assembleDebug
+
+      - name: Upload Sender APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: sender-apk
+          path: sender/app/build/outputs/apk/debug/app-debug.apk
+
+
+  receiver:
+    name: Build Receiver APK
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Make Gradle executable
+        working-directory: receiver
+        run: chmod +x gradlew
+
+      - name: Build Receiver
+        working-directory: receiver
+        run: ./gradlew assembleDebug
+
+      - name: Upload Receiver APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: receiver-apk
+          path: receiver/app/build/outputs/apk/debug/app-debug.apk
+```
