@@ -1,197 +1,197 @@
+```java
 package com.manikanta.audiostream.sender;
 
 import android.media.AudioFormat;
 import android.media.AudioRecord;
 import android.media.MediaRecorder;
 
-import org.json.JSONObject;
-
-import java.util.concurrent.atomic.AtomicBoolean;
-
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.WebSocket;
-import okhttp3.WebSocketListener;
-import okio.ByteString;
+import java.io.BufferedOutputStream;
+import java.io.IOException;
+import java.net.ServerSocket;
+import java.net.Socket;
 
 public class AudioStreamer {
 
+    private static final int PORT = 8988;
+
     private static final int SAMPLE_RATE = 16000;
 
-    private final String serverUrl;
-    private final String roomId;
+    private static final int CHANNEL =
+            AudioFormat.CHANNEL_IN_MONO;
 
-    private final AtomicBoolean running =
-            new AtomicBoolean(false);
+    private static final int AUDIO_FORMAT =
+            AudioFormat.ENCODING_PCM_16BIT;
 
-    private AudioRecord recorder;
+    private volatile boolean running = false;
 
-    private WebSocket socket;
+    private ServerSocket serverSocket;
+    private Socket clientSocket;
 
-    private Thread audioThread;
+    private AudioRecord audioRecord;
 
-    public AudioStreamer(
-            String serverUrl,
-            String roomId) {
-
-        this.serverUrl = serverUrl;
-        this.roomId = roomId;
-    }
+    private Thread serverThread;
 
     public void start() {
 
-        if (running.getAndSet(true)) {
+        if (running) {
             return;
         }
 
-        Request request =
-                new Request.Builder()
-                        .url(serverUrl)
-                        .build();
+        running = true;
 
-        OkHttpClient client =
-                new OkHttpClient();
+        serverThread = new Thread(() -> {
 
-        socket =
-                client.newWebSocket(
-                        request,
-                        new WebSocketListener() {
+            try {
 
-                            @Override
-                            public void onOpen(
-                                    WebSocket webSocket,
-                                    okhttp3.Response response) {
+                serverSocket =
+                        new ServerSocket(PORT);
 
-                                try {
+                while (running) {
 
-                                    JSONObject json =
-                                            new JSONObject();
+                    clientSocket =
+                            serverSocket.accept();
 
-                                    json.put(
-                                            "type",
-                                            "join"
-                                    );
+                    streamToClient(clientSocket);
 
-                                    json.put(
-                                            "roomId",
-                                            roomId
-                                    );
+                    try {
+                        clientSocket.close();
+                    } catch (Exception ignored) {
+                    }
 
-                                    webSocket.send(
-                                            json.toString()
-                                    );
+                    clientSocket = null;
+                }
 
-                                    startRecording();
+            } catch (Exception e) {
 
-                                } catch (Exception e) {
+                e.printStackTrace();
 
-                                    stop();
-                                }
-                            }
+            } finally {
 
-                            @Override
-                            public void onFailure(
-                                    WebSocket webSocket,
-                                    Throwable t,
-                                    okhttp3.Response response) {
+                stop();
+            }
 
-                                stop();
-                            }
-                        }
-                );
+        });
+
+        serverThread.start();
     }
 
-    private void startRecording() {
-
-        int minBuffer =
-                AudioRecord.getMinBufferSize(
-                        SAMPLE_RATE,
-                        AudioFormat.CHANNEL_IN_MONO,
-                        AudioFormat.ENCODING_PCM_16BIT
-                );
+    private void streamToClient(Socket socket) {
 
         int bufferSize =
-                Math.max(
-                        minBuffer,
-                        4096
+                AudioRecord.getMinBufferSize(
+                        SAMPLE_RATE,
+                        CHANNEL,
+                        AUDIO_FORMAT
                 );
 
-        recorder =
+        if (bufferSize <= 0) {
+            bufferSize = SAMPLE_RATE;
+        }
+
+        audioRecord =
                 new AudioRecord(
                         MediaRecorder.AudioSource.MIC,
                         SAMPLE_RATE,
-                        AudioFormat.CHANNEL_IN_MONO,
-                        AudioFormat.ENCODING_PCM_16BIT,
-                        bufferSize
+                        CHANNEL,
+                        AUDIO_FORMAT,
+                        bufferSize * 2
                 );
-
-        recorder.startRecording();
-
-        audioThread =
-                new Thread(
-                        () -> captureAudio(),
-                        "AudioCapture"
-                );
-
-        audioThread.start();
-    }
-
-    private void captureAudio() {
 
         byte[] buffer =
-                new byte[2048];
+                new byte[bufferSize];
 
-        while (running.get()) {
+        try {
 
-            int count =
-                    recorder.read(
-                            buffer,
-                            0,
-                            buffer.length
+            BufferedOutputStream output =
+                    new BufferedOutputStream(
+                            socket.getOutputStream(),
+                            bufferSize * 2
                     );
 
-            if (count > 0 &&
-                    socket != null) {
+            audioRecord.startRecording();
 
-                socket.send(
-                        ByteString.of(
+            while (
+                    running &&
+                    !socket.isClosed()
+            ) {
+
+                int bytesRead =
+                        audioRecord.read(
                                 buffer,
                                 0,
-                                count
-                        )
-                );
+                                buffer.length
+                        );
+
+                if (bytesRead > 0) {
+
+                    output.write(
+                            buffer,
+                            0,
+                            bytesRead
+                    );
+
+                    output.flush();
+                }
             }
+
+            try {
+                output.close();
+            } catch (Exception ignored) {
+            }
+
+        } catch (Exception e) {
+
+            e.printStackTrace();
+
+        } finally {
+
+            releaseRecorder();
+        }
+    }
+
+    private void releaseRecorder() {
+
+        if (audioRecord != null) {
+
+            try {
+                audioRecord.stop();
+            } catch (Exception ignored) {
+            }
+
+            try {
+                audioRecord.release();
+            } catch (Exception ignored) {
+            }
+
+            audioRecord = null;
         }
     }
 
     public void stop() {
 
-        if (!running.getAndSet(false)) {
-            return;
-        }
+        running = false;
 
-        if (recorder != null) {
+        releaseRecorder();
+
+        if (clientSocket != null) {
 
             try {
-                recorder.stop();
+                clientSocket.close();
             } catch (Exception ignored) {
             }
 
-            recorder.release();
-
-            recorder = null;
+            clientSocket = null;
         }
 
-        if (socket != null) {
+        if (serverSocket != null) {
 
-            socket.close(
-                    1000,
-                    "Stopped"
-            );
+            try {
+                serverSocket.close();
+            } catch (Exception ignored) {
+            }
 
-            socket = null;
+            serverSocket = null;
         }
-
-        audioThread = null;
     }
 }
+```
