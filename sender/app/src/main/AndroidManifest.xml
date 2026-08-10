@@ -1,4 +1,3 @@
-```xml
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
@@ -7,13 +6,8 @@
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
 
-    <!-- Android 9+ foreground service -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-
-    <!-- Android 14+ microphone foreground service -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
-
-    <!-- Android 13+ notification -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
@@ -42,4 +36,3 @@
     </application>
 
 </manifest>
-```
