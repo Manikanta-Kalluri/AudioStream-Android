@@ -1,3 +1,4 @@
+```java
 package com.manikanta.audiostream.receiver;
 
 import android.os.Bundle;
@@ -5,161 +6,144 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
 
-import androidx.activity.ComponentActivity;
+import androidx.appcompat.app.AppCompatActivity;
 
-public class MainActivity
-        extends ComponentActivity {
+public class MainActivity extends AppCompatActivity {
 
-    private EditText serverUrl;
+    private EditText ipAddress;
 
-    private EditText roomId;
+    private Button connectButton;
+    private Button listenButton;
+    private Button recordButton;
 
-    private TextView status;
+    private TextView statusText;
 
-    private AudioReceiver receiver;
+    private AudioReceiver audioReceiver;
 
     @Override
-    protected void onCreate(
-            Bundle savedInstanceState) {
-
+    protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        setContentView(
-                R.layout.activity_main
-        );
+        setContentView(R.layout.activity_main);
 
-        serverUrl =
-                findViewById(
-                        R.id.serverUrl
+        ipAddress =
+                findViewById(R.id.ipAddress);
+
+        connectButton =
+                findViewById(R.id.connectButton);
+
+        listenButton =
+                findViewById(R.id.listenButton);
+
+        recordButton =
+                findViewById(R.id.recordButton);
+
+        statusText =
+                findViewById(R.id.statusText);
+
+        audioReceiver =
+                new AudioReceiver();
+
+        listenButton.setEnabled(false);
+        recordButton.setEnabled(false);
+
+        connectButton.setOnClickListener(v -> {
+
+            String ip =
+                    ipAddress
+                            .getText()
+                            .toString()
+                            .trim();
+
+            if (ip.isEmpty()) {
+
+                statusText.setText(
+                        "Enter Mobile 1 IP address"
                 );
 
-        roomId =
-                findViewById(
-                        R.id.roomId
-                );
+                return;
+            }
 
-        status =
-                findViewById(
-                        R.id.status
-                );
+            audioReceiver.connect(
+                    ip,
+                    new AudioReceiver.ConnectionListener() {
 
-        Button connect =
-                findViewById(
-                        R.id.connect
-                );
+                        @Override
+                        public void onConnected() {
 
-        Button listen =
-                findViewById(
-                        R.id.listen
-                );
+                            runOnUiThread(() -> {
 
-        Button record =
-                findViewById(
-                        R.id.record
-                );
+                                statusText.setText(
+                                        "CONNECTED TO MOBILE 1"
+                                );
 
-        Button disconnect =
-                findViewById(
-                        R.id.disconnect
-                );
+                                connectButton
+                                        .setEnabled(false);
 
-        connect.setOnClickListener(
-                v -> connect()
-        );
+                                listenButton
+                                        .setEnabled(true);
 
-        listen.setOnClickListener(
-                v -> {
+                                recordButton
+                                        .setEnabled(true);
+                            });
+                        }
 
-                    if (receiver != null) {
+                        @Override
+                        public void onDisconnected() {
 
-                        boolean enabled =
-                                receiver.toggleListen();
+                            runOnUiThread(() -> {
 
-                        listen.setText(
-                                enabled
-                                        ? "LISTEN OFF"
-                                        : "LISTEN ON"
-                        );
+                                statusText.setText(
+                                        "DISCONNECTED"
+                                );
+
+                                connectButton
+                                        .setEnabled(true);
+
+                                listenButton
+                                        .setEnabled(false);
+
+                                recordButton
+                                        .setEnabled(false);
+                            });
+                        }
                     }
-                }
-        );
+            );
+        });
 
-        record.setOnClickListener(
-                v -> {
+        listenButton.setOnClickListener(v -> {
 
-                    if (receiver != null) {
+            boolean listening =
+                    audioReceiver.toggleListening();
 
-                        boolean enabled =
-                                receiver.toggleRecord();
+            listenButton.setText(
+                    listening
+                            ? "LISTEN OFF"
+                            : "LISTEN ON"
+            );
+        });
 
-                        record.setText(
-                                enabled
-                                        ? "RECORD OFF"
-                                        : "RECORD ON"
-                        );
-                    }
-                }
-        );
+        recordButton.setOnClickListener(v -> {
 
-        disconnect.setOnClickListener(
-                v -> disconnect()
-        );
-    }
+            boolean recording =
+                    audioReceiver.toggleRecording();
 
-    private void connect() {
-
-        String url =
-                serverUrl
-                        .getText()
-                        .toString()
-                        .trim();
-
-        String room =
-                roomId
-                        .getText()
-                        .toString()
-                        .trim();
-
-        receiver =
-                new AudioReceiver(
-                        url,
-                        room,
-                        message ->
-                                runOnUiThread(
-                                        () ->
-                                                status.setText(
-                                                        message
-                                                )
-                                )
-                );
-
-        receiver.connect();
-    }
-
-    private void disconnect() {
-
-        if (receiver != null) {
-
-            receiver.stop();
-
-            receiver = null;
-        }
-
-        status.setText(
-                "Disconnected"
-        );
+            recordButton.setText(
+                    recording
+                            ? "RECORD OFF"
+                            : "RECORD ON"
+            );
+        });
     }
 
     @Override
     protected void onDestroy() {
 
-        if (receiver != null) {
-
-            receiver.stop();
-
-            receiver = null;
+        if (audioReceiver != null) {
+            audioReceiver.disconnect();
         }
 
         super.onDestroy();
     }
 }
+```
