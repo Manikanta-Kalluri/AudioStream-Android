@@ -1,4 +1,3 @@
-```java
 package com.manikanta.audiostream.sender;
 
 import android.media.AudioFormat;
@@ -6,7 +5,6 @@ import android.media.AudioRecord;
 import android.media.MediaRecorder;
 
 import java.io.BufferedOutputStream;
-import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
 
@@ -194,4 +192,3 @@ public class AudioStreamer {
         }
     }
 }
-```
