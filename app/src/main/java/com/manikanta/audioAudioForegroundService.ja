@@ -1,4 +1,4 @@
-package com.manikanta.audiostream;
+package com.manikanta.audiostream.sender;
 
 import android.app.Notification;
 import android.app.NotificationChannel;
@@ -7,12 +7,16 @@ import android.app.Service;
 import android.content.Intent;
 import android.os.IBinder;
 
-public class AudioForegroundService extends Service {
+public class AudioForegroundService
+        extends Service {
 
     private static final String CHANNEL_ID =
-            "microphone_channel";
+            "audio_stream_channel";
 
-    private static final int NOTIFICATION_ID = 1001;
+    private static final int NOTIFICATION_ID =
+            1001;
+
+    private WebRtcSender webRtcSender;
 
     @Override
     public void onCreate() {
@@ -22,16 +26,21 @@ public class AudioForegroundService extends Service {
         createNotificationChannel();
 
         Notification notification =
-                new Notification.Builder(this, CHANNEL_ID)
-                        .setContentTitle("Audio Stream")
-                        .setContentText(
-                                "Microphone session is active"
-                        )
-                        .setSmallIcon(
-                                android.R.drawable.ic_btn_speak_now
-                        )
-                        .setOngoing(true)
-                        .build();
+                new Notification.Builder(
+                        this,
+                        CHANNEL_ID
+                )
+                .setContentTitle(
+                        "Audio Stream"
+                )
+                .setContentText(
+                        "Microphone streaming is active"
+                )
+                .setSmallIcon(
+                        android.R.drawable.ic_btn_speak_now
+                )
+                .setOngoing(true)
+                .build();
 
         startForeground(
                 NOTIFICATION_ID,
@@ -45,10 +54,21 @@ public class AudioForegroundService extends Service {
             int flags,
             int startId) {
 
-        /*
-         * WebRTC microphone streaming
-         * will be added here in Step 2.
-         */
+        String roomId =
+                intent.getStringExtra(
+                        "ROOM_ID"
+                );
+
+        if (webRtcSender == null) {
+
+            webRtcSender =
+                    new WebRtcSender(
+                            getApplicationContext(),
+                            roomId
+                    );
+
+            webRtcSender.start();
+        }
 
         return START_NOT_STICKY;
     }
@@ -56,16 +76,19 @@ public class AudioForegroundService extends Service {
     @Override
     public void onDestroy() {
 
-        /*
-         * WebRTC/audio resources will be
-         * released here.
-         */
+        if (webRtcSender != null) {
+
+            webRtcSender.stop();
+
+            webRtcSender = null;
+        }
 
         super.onDestroy();
     }
 
     @Override
     public IBinder onBind(Intent intent) {
+
         return null;
     }
 
@@ -74,7 +97,7 @@ public class AudioForegroundService extends Service {
         NotificationChannel channel =
                 new NotificationChannel(
                         CHANNEL_ID,
-                        "Microphone Session",
+                        "Audio Streaming",
                         NotificationManager.IMPORTANCE_LOW
                 );
 
@@ -88,7 +111,10 @@ public class AudioForegroundService extends Service {
                 );
 
         if (manager != null) {
-            manager.createNotificationChannel(channel);
+
+            manager.createNotificationChannel(
+                    channel
+            );
         }
     }
 }
