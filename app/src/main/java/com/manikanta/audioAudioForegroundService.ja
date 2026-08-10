@@ -1,0 +1,94 @@
+package com.manikanta.audiostream;
+
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.Service;
+import android.content.Intent;
+import android.os.IBinder;
+
+public class AudioForegroundService extends Service {
+
+    private static final String CHANNEL_ID =
+            "microphone_channel";
+
+    private static final int NOTIFICATION_ID = 1001;
+
+    @Override
+    public void onCreate() {
+
+        super.onCreate();
+
+        createNotificationChannel();
+
+        Notification notification =
+                new Notification.Builder(this, CHANNEL_ID)
+                        .setContentTitle("Audio Stream")
+                        .setContentText(
+                                "Microphone session is active"
+                        )
+                        .setSmallIcon(
+                                android.R.drawable.ic_btn_speak_now
+                        )
+                        .setOngoing(true)
+                        .build();
+
+        startForeground(
+                NOTIFICATION_ID,
+                notification
+        );
+    }
+
+    @Override
+    public int onStartCommand(
+            Intent intent,
+            int flags,
+            int startId) {
+
+        /*
+         * WebRTC microphone streaming
+         * will be added here in Step 2.
+         */
+
+        return START_NOT_STICKY;
+    }
+
+    @Override
+    public void onDestroy() {
+
+        /*
+         * WebRTC/audio resources will be
+         * released here.
+         */
+
+        super.onDestroy();
+    }
+
+    @Override
+    public IBinder onBind(Intent intent) {
+        return null;
+    }
+
+    private void createNotificationChannel() {
+
+        NotificationChannel channel =
+                new NotificationChannel(
+                        CHANNEL_ID,
+                        "Microphone Session",
+                        NotificationManager.IMPORTANCE_LOW
+                );
+
+        channel.setDescription(
+                "Shows when microphone streaming is active."
+        );
+
+        NotificationManager manager =
+                getSystemService(
+                        NotificationManager.class
+                );
+
+        if (manager != null) {
+            manager.createNotificationChannel(channel);
+        }
+    }
+}
