@@ -29,4 +29,3 @@ jobs:
         run: |
           cd receiver
           gradle assembleDebug
-```
